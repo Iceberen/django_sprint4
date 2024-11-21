@@ -5,11 +5,12 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.views.generic import (
     CreateView, DeleteView, DetailView, ListView, UpdateView, View
 )
-from django.views.decorators.http import require_POST
-from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
-from django.contrib.auth.decorators import login_required, user_passes_test
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.contrib.auth.decorators import login_required
 from django.contrib.auth import get_user_model
 from django.db.models import Count
+from django.http import Http404
+from django.utils import timezone
 
 from .models import Post, Category, Comment
 from .forms import PostForm, UpdateUserForm, CommentForm
@@ -39,7 +40,7 @@ class ProfileListView(ListView):
         return context
 
 
-class ProfileUpdateView(View):
+class ProfileUpdateView(LoginRequiredMixin, View):
     def get(self, request):
         user_form = UpdateUserForm(instance=request.user)
         return render(request, 'blog/user.html', {'form': user_form})
@@ -75,6 +76,19 @@ class PostDetailView(DetailView):
         )
         context['form'] = CommentForm()
         return context
+
+    def dispatch(self, request, *args, **kwargs):
+        """
+        Проверяем, что пост, снятый с публикации, в неопубликованной
+        категории или отложенный по времени видит только его автор.
+        """
+        instance = get_object_or_404(Post, pk=self.kwargs['post_id'])
+        if ((instance.is_published is False
+             or instance.category.is_published is False
+             or instance.pub_date > timezone.now())
+                and instance.author != self.request.user):
+            raise Http404
+        return super().dispatch(request, *args, **kwargs)
 
 
 class CategotyPostListView(ListView):
@@ -118,45 +132,39 @@ class PostCreateView(LoginRequiredMixin, CreateView):
                        kwargs={'username': self.request.user.username})
 
 
-class OnlyAuthorMixin(UserPassesTestMixin):
-
-    def test_func(self):
-        object = self.get_object()
-        return object.author == self.request.user
-
-
-class PostUpdateView(OnlyAuthorMixin, LoginRequiredMixin, UpdateView):
+class PostUpdateView(LoginRequiredMixin, UpdateView):
     model = Post
     form_class = PostForm
     template_name = 'blog/create.html'
     pk_url_kwarg = 'post_id'
-    redirect_field_name = ''
-    # raise_exception = True
 
-    def get_login_url(self):
-        return reverse('blog:post_detail',
-                       kwargs={'post_id': self.kwargs[self.pk_url_kwarg]})
-
-    def form_valid(self, form):
-        form.instance.author = self.request.user
-        return super().form_valid(form)
+    def dispatch(self, request, *args, **kwargs):
+        instance = get_object_or_404(Post, pk=self.kwargs['post_id'])
+        if instance.author != request.user:
+            return redirect('blog:post_detail', post_id=self.kwargs['post_id'])
+        return super().dispatch(request, *args, **kwargs)
 
     def get_success_url(self):
         return reverse('blog:post_detail',
                        kwargs={'post_id': self.kwargs[self.pk_url_kwarg]})
 
 
-class PostDeleteView(OnlyAuthorMixin, LoginRequiredMixin, DeleteView):
+class PostDeleteView(LoginRequiredMixin, DeleteView):
     model = Post
     template_name = 'blog/create.html'
     pk_url_kwarg = 'post_id'
+
+    def dispatch(self, request, *args, **kwargs):
+        instance = get_object_or_404(Post, pk=self.kwargs['post_id'])
+        if instance.author != request.user:
+            return redirect('blog:post_detail', post_id=self.kwargs['post_id'])
+        return super().dispatch(request, *args, **kwargs)
 
     def get_success_url(self):
         return reverse('blog:profile',
                        kwargs={'username': self.request.user.username})
 
 
-@require_POST
 @login_required
 def post_comment(request, post_id):
     post = get_object_or_404(Post, id=post_id)
@@ -169,17 +177,14 @@ def post_comment(request, post_id):
     return redirect('blog:post_detail', post_id=post_id)
 
 
-# def only_author(user):
-#     return user.author == request.user
-
-
-# @user_passes_test(only_author)
 @login_required
 def post_comment_edit(request, post_id, comment_id):
     post = get_object_or_404(Post, id=post_id)
     instance = get_object_or_404(
         Comment.objects.filter(post=post), id=comment_id
     )
+    if instance.author != request.user:
+        return redirect('blog:post_detail', post_id=post_id)
     form = CommentForm(request.POST or None, instance=instance)
     context = {'form': form, 'comment': instance}
 
@@ -195,6 +200,8 @@ def post_comment_delete(request, post_id, comment_id):
     instance = get_object_or_404(
         Comment.objects.filter(post=post), id=comment_id
     )
+    if instance.author != request.user:
+        return redirect('blog:post_detail', post_id=post_id)
     context = {'comment': instance}
     if request.method == 'POST':
         instance.delete()
