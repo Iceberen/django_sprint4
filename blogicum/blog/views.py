@@ -29,7 +29,9 @@ class ProfileListView(ListView):
 
     def get_queryset(self):
         self.set_author(self.kwargs['username'])
-        queryset = selected_post_profile().filter(author=self.author)
+        queryset = selected_post_profile(Post.objects).filter(
+            author=self.author
+        )
         return queryset
 
     def get_context_data(self, **kwargs):
@@ -49,7 +51,7 @@ class ProfileUpdateView(LoginRequiredMixin, UpdateView):
 
 class PostListView(ListView):
     model = Post
-    queryset = selected_post_index()
+    queryset = selected_post_index(Post.objects)
     template_name = 'blog/index.html'
     paginate_by = QUANTITY_ON_PAGINATE
 
@@ -86,21 +88,26 @@ class CategotyPostListView(ListView):
     model = Post
     template_name = 'blog/category.html'
     paginate_by = QUANTITY_ON_PAGINATE
+    category = None
+
+    def set_category(self, category):
+        self.category = get_object_or_404(
+            Category,
+            slug=category,
+            is_published=True
+        )
 
     def get_queryset(self):
-        queryset = selected_post_index().filter(
-            category__slug=self.kwargs['category_slug'],
-            category__is_published=True,
+        self.set_category(self.kwargs['category_slug'])
+        queryset = selected_post_index(Post.objects).filter(
+            category=self.category,
         )
         return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['category'] = get_object_or_404(
-            Category,
-            slug=self.kwargs['category_slug'],
-            is_published=True
-        )
+        self.set_category(self.kwargs['category_slug'])
+        context['category'] = self.category
         return context
 
 
