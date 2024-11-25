@@ -2,7 +2,7 @@ from django.db.models import Count
 from django.utils import timezone
 
 
-def selected_post_profile(query):
+def filter_profile_post_list(query):
     return (query
             .select_related('author', 'category', 'location')
             .annotate(comment_count=Count('comments'))
@@ -10,8 +10,9 @@ def selected_post_profile(query):
             )
 
 
-def selected_post_index(query):
-    return (selected_post_profile(query).filter(
+def add_filter_post_list(query):
+    queryset = filter_profile_post_list(query)
+    return (queryset.filter(
         is_published=True,
         category__is_published=True,
         pub_date__date__lt=timezone.now(),)

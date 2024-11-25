@@ -11,7 +11,7 @@ from django.utils import timezone
 
 from .models import Post, Category, Comment
 from .forms import PostForm, UpdateUserForm, CommentForm
-from .querysets import selected_post_profile, selected_post_index
+from .querysets import filter_profile_post_list, add_filter_post_list
 from .constants import QUANTITY_ON_PAGINATE
 
 
@@ -29,9 +29,7 @@ class ProfileListView(ListView):
 
     def get_queryset(self):
         self.set_author(self.kwargs['username'])
-        queryset = selected_post_profile(Post.objects).filter(
-            author=self.author
-        )
+        queryset = filter_profile_post_list(self.author.posts)
         return queryset
 
     def get_context_data(self, **kwargs):
@@ -51,7 +49,7 @@ class ProfileUpdateView(LoginRequiredMixin, UpdateView):
 
 class PostListView(ListView):
     model = Post
-    queryset = selected_post_index(Post.objects)
+    queryset = add_filter_post_list(Post.objects)
     template_name = 'blog/index.html'
     paginate_by = QUANTITY_ON_PAGINATE
 
@@ -99,9 +97,7 @@ class CategotyPostListView(ListView):
 
     def get_queryset(self):
         self.set_category(self.kwargs['category_slug'])
-        queryset = selected_post_index(Post.objects).filter(
-            category=self.category,
-        )
+        queryset = add_filter_post_list(self.category.posts)
         return queryset
 
     def get_context_data(self, **kwargs):
