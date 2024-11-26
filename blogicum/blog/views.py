@@ -49,7 +49,7 @@ class ProfileUpdateView(LoginRequiredMixin, UpdateView):
 
 class PostListView(ListView):
     model = Post
-    queryset = add_filter_post_list(Post.objects)
+    queryset = add_filter_post_list(filter_profile_post_list(Post.objects))
     template_name = 'blog/index.html'
     paginate_by = QUANTITY_ON_PAGINATE
 
@@ -97,7 +97,8 @@ class CategotyPostListView(ListView):
 
     def get_queryset(self):
         self.set_category(self.kwargs['category_slug'])
-        queryset = add_filter_post_list(self.category.posts)
+        queryset = add_filter_post_list(
+            filter_profile_post_list(self.category.posts))
         return queryset
 
     def get_context_data(self, **kwargs):

@@ -11,8 +11,7 @@ def filter_profile_post_list(query):
 
 
 def add_filter_post_list(query):
-    queryset = filter_profile_post_list(query)
-    return (queryset.filter(
+    return (query.filter(
         is_published=True,
         category__is_published=True,
         pub_date__date__lt=timezone.now(),)
