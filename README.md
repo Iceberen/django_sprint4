@@ -47,9 +47,11 @@
     ```
     pip install -r requirements.txt
 
-4. Запустите игру:
+4. Выполните миграции и запустите сервер:
     ```
+    python3 manage.py migrate
     python3 manage.py runserver     # для Linux/macOS
+    python manage.py migrate
     python manage.py runserver      # для Windows
 
 5. Откройте в браузере:
